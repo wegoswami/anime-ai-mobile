@@ -1,0 +1,44 @@
+name: Deploy mobile app (from zip)
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["*.zip"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack the mobile zip
+        run: |
+          zip=$(ls -t *.zip 2>/dev/null | head -n1)
+          if [ -z "$zip" ]; then echo "No .zip in repo root"; ls -la; exit 1; fi
+          echo "Using $zip"
+          mkdir _unz
+          unzip -q "$zip" -d _unz
+          idx=$(find _unz -name index.html | awk '{print length, $0}' | sort -n | head -n1 | cut -d' ' -f2-)
+          if [ -z "$idx" ]; then echo "index.html not found in zip"; find _unz | head -50; exit 1; fi
+          mv "$(dirname "$idx")" site
+          touch site/.nojekyll
+          ls site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
